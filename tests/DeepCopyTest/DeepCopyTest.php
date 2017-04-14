@@ -5,6 +5,9 @@ namespace DeepCopyTest;
 use DeepCopy\DeepCopy;
 use DeepCopy\Filter\Filter;
 use DeepCopy\Matcher\PropertyMatcher;
+use DeepCopy\Matcher\PropertyTypeMatcher;
+use DeepCopy\TypeFilter\Spl\SplDoublyLinkedList;
+use DeepCopy\TypeFilter\Spl\SplStackFilter;
 use DeepCopy\TypeFilter\TypeFilter;
 use DeepCopy\TypeMatcher\TypeMatcher;
 
@@ -40,6 +43,23 @@ class DeepCopyTest extends AbstractTestClass
         $deepCopy = new DeepCopy();
 
         $this->assertDeepCopyOf($o, $deepCopy->copy($o));
+    }
+
+    public function testPropertyObjectCopyWithDateTimes()
+    {
+        $o = new A();
+        $o->date1 = new \DateTime();
+        if (class_exists('DateTimeImmutable')) {
+            $o->date2 = new \DateTimeImmutable();
+        }
+
+        $deepCopy = new DeepCopy();
+        $c = $deepCopy->copy($o);
+
+        $this->assertDeepCopyOf($o, $c);
+
+        $c->date1->setDate(2015, 01, 04);
+        $this->assertNotEquals($c->date1, $o->date1);
     }
 
     public function testPrivatePropertyOfParentObjectCopy()
@@ -109,6 +129,21 @@ class DeepCopyTest extends AbstractTestClass
         $this->assertDeepCopyOf($a, $a2);
     }
 
+    public function testCloneChild()
+    {
+        $h = new H();
+
+        $deepCopy = new DeepCopy();
+        $newH = $deepCopy->copy($h);
+
+        $propRefl = (new \ReflectionObject($newH))->getProperty('prop');
+        $propRefl->setAccessible(true);
+
+        $this->assertNotSame($newH, $h);
+        $this->assertEquals($newH, $h);
+        $this->assertEquals('bar', $propRefl->getValue($newH));
+    }
+
     public function testNonClonableItems()
     {
         $a = new \ReflectionClass('DeepCopyTest\A');
@@ -126,6 +161,28 @@ class DeepCopyTest extends AbstractTestClass
         $o = new C;
         $deepCopy = new DeepCopy();
         $deepCopy->copy($o);
+    }
+
+    public function testCloneObjectsWithUserlandCloneMethod()
+    {
+        $f = new F();
+        $f->prop = new \DateTime('2016-09-16');
+
+        $deepCopy = new DeepCopy();
+        $newF = $deepCopy->copy($f);
+
+        $this->assertNotSame($newF->prop, $f->prop);
+    }
+
+    public function testCloneObjectsWithUserlandCloneMethodAndUseCloneableMethodEnabled()
+    {
+        $f = new F();
+        $f->prop = new \DateTime('2016-09-16');
+
+        $deepCopy = new DeepCopy(true);
+        $newF = $deepCopy->copy($f);
+
+        $this->assertSame($newF->prop, $f->prop);
     }
 
     /**
@@ -218,6 +275,24 @@ class DeepCopyTest extends AbstractTestClass
         $this->assertNull($new[2]);
         $this->assertNull($new[3]);
     }
+
+    public function testSplDoublyLinkedListDeepCopy()
+    {
+        $a = new A();
+        $a->property1 = 'foo';
+        $a->property2 = new \SplDoublyLinkedList();
+
+        $b = new B();
+        $b->property = 'baz';
+        $a->property2->push($b);
+
+        $stack = new \SplDoublyLinkedList();
+        $stack->push($a);
+        $stack->push($b);
+
+        $deepCopy = new DeepCopy();
+        $this->assertDeepCopyOf($stack, $deepCopy->copy($stack));
+    }
 }
 
 class A
@@ -266,4 +341,24 @@ class E extends D
         $this->property2 = $property2;
         return $this;
     }
+}
+
+class F
+{
+    public $prop;
+
+    public function __clone()
+    {
+        $this->foo = 'bar';
+    }
+}
+
+class G
+{
+    private $prop = 'foo';
+}
+
+class H extends G
+{
+    private $prop = 'bar';
 }

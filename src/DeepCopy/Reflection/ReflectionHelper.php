@@ -33,16 +33,19 @@ class ReflectionHelper
                 continue;
             }
 
-            $f = $prop->getName();
-            $propsArr[$f] = $prop;
+            $propertyName = $prop->getName();
+            $propsArr[$propertyName] = $prop;
         }
 
         if ($parentClass = $ref->getParentClass()) {
             $parentPropsArr = self::getProperties($parentClass);
-            if (count($parentPropsArr) > 0) {
-                $propsArr = array_merge($parentPropsArr, $propsArr);
+            foreach ($propsArr as $key => $property) {
+                $parentPropsArr[$key] = $property;
             }
+
+            return $parentPropsArr;
         }
+
         return $propsArr;
     }
 }
